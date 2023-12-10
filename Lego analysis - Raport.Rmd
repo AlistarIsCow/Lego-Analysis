@@ -1,0 +1,429 @@
+---
+title: "Lego analysis - Raport"
+author: "Kacper Matecki"
+date: "`r Sys.Date()`"
+output:
+  html_document: 
+    toc: yes
+    toc_float: true
+    number_sections: yes
+  word_document: default
+  pdf_document: default
+---
+
+```{r, message=F, echo=F, warning=F}
+library(knitr)
+library(dplyr)
+library(skimr)
+library(plotly)
+library(ggplot2)
+library(forecast)
+library(png)
+
+opts_chunk$set(echo=F, message = F, warning = F)
+```
+
+# Wstęp
+
+Projekt polega na przeanalizowaniu bazy danych o klockach LEGO ze strony [Rebrickable](https://rebrickable.com).
+Raport składa się z następujących sekcji: 
+
+- Wstęp - wprowadzenie do projektu oraz podsumowanie
+- Konfiguracja środowiska - opisanie wykorzystanych bibliotek oraz ustawienie ziarna w celu zapewnienia powtarzalności wyników
+- Wstępne przetwarzanie - wczytanie danych oraz przetworzenie brakujących danych
+- Analiza danych - pokazanie statystyk i przykładowych danych dla wszystkich tabeli, następnie analiza wartości poszczególnych tabel.
+- Przewidywanie trendów - wykorzystanie uczenia maszynowego w celu przewidzenia dalszych trendów klocków LEGO.
+
+## Schemat
+
+```{r}
+schema <- readPNG("rebrickable_schema_v3.png")
+grid::grid.raster(schema)
+```
+
+## Podsumowanie
+
+Analiza ujawnia, że zainteresowanie klockami LEGO nieustannie rośnie od momentu ich wypuszczenia. Pomimo kilku lat, w których wzrost produkcji nowych zestawów spowolnił, ogólny trend jest rosnący. Duża popularność klocków LEGO wynika między innymi z ilości współprac ze znanymi markami jak Star Wars oraz Harry Potter. Z przeprowadzonych prognoz wynika, że liczba produkowanych klockow LEGO w przyszłości będzie ciągle rosła.
+
+# Konfiguracja środowiska
+
+## Wykorzystane biblioteki
+Do zrealizowania projektu wykorzystane zostały następujące biblioteki:
+
+- knitr - stworzenie raportu
+- dplyr - przetwarzanie danych tabelarycznych
+- skimr - stworzenie prostego podsumowania danych
+- plotly - dodawanie interaktywnych wykresów
+- ggplot2 - tworzenie wykresów
+- forecast - przewidywanie trendów
+- png - wczytywanie obrazów
+
+## Ustawienie ziarna
+W celu zapewnienia powtarzalności wyników, ziarno zostało ustawione na 23.
+```{r, echo=TRUE}
+set.seed(23)
+```
+
+# Wstępne przetwarzanie
+
+## Wczytanie danych
+
+```{r, cache=T, echo=TRUE}
+colors_raw <- read.csv("colors.csv", header = TRUE, sep = ",")
+elements_raw <- read.csv("elements.csv", header = TRUE, sep = ",")
+inventories_raw <- read.csv("inventories.csv", header = TRUE, sep = ",")
+inventory_minifigs_raw <- read.csv("inventory_minifigs.csv", header = TRUE, sep = ",")
+inventory_parts_raw <- read.csv("inventory_parts.csv", header = TRUE, sep = ",")
+inventory_sets_raw <- read.csv("inventory_sets.csv", header = TRUE, sep = ",")
+minifigs_raw <- read.csv("minifigs.csv", header = TRUE, sep = ",")
+part_categories_raw <- read.csv("part_categories.csv", header = TRUE, sep = ",")
+part_relationships_raw <- read.csv("part_relationships.csv", header = TRUE, sep = ",")
+parts_raw <- read.csv("parts.csv", header = TRUE, sep = ",")
+sets_raw <- read.csv("sets.csv", header = TRUE, sep = ",")
+themes_raw <- read.csv("themes.csv", header = TRUE, sep = ",")
+```
+
+## Przetworzenie brakujących danych
+Baza danych jest kompletna, tzn w żadnej tabeli nie ma wartości brakujących. Wyjątkiem jest tabela Themes, która zawiera kolumnę parent_id. Dla części rekordów wartość tej kolumny pozostaje pusta, ponieważ tematy te są tematami nadrzędnymi (np. Technic, Town, City).
+Dodatkowo z tabeli Elements usunięta została kolumna design_id, ponieważ nie wiadomo co ona oznacza, oraz nie występuje do niej nawiązanie w żadnej innej tabeli.
+
+```{r, echo=TRUE}
+colors_clean <- colors_raw
+elements_clean <- elements_raw[,-4]
+inventories_clean <- inventories_raw
+inventory_minifigs_clean <- inventory_minifigs_raw
+inventory_parts_clean <- inventory_parts_raw
+inventory_sets_clean <- inventory_sets_raw
+minifigs_clean <- minifigs_raw
+part_categories_clean <- part_categories_raw
+part_relationships_clean <- part_relationships_raw
+parts_clean <- parts_raw
+sets_clean <- sets_raw
+themes_clean <- themes_raw
+```
+# Analiza danych
+
+## Podstawowe statystyki
+
+### Colors {.tabset}
+#### Przykładowe dane
+```{r}
+knitr::kable(head(colors_clean))
+```
+#### Statystyki
+```{r}
+skim(colors_clean)
+```
+
+### Elements {.tabset}
+#### Przykładowe dane
+```{r}
+knitr::kable(head(elements_clean))
+```
+#### Statystyki
+```{r}
+skim(elements_clean)
+```
+
+### Inventories {.tabset}
+#### Przykładowe dane
+```{r}
+knitr::kable(head(inventories_clean))
+```
+#### Statystyki
+```{r}
+skim(inventories_clean)
+```
+
+### Inventory_minifigs {.tabset}
+#### Przykładowe dane
+```{r}
+knitr::kable(head(inventory_minifigs_clean))
+```
+#### Statystyki
+```{r}
+skim(inventory_minifigs_clean)
+```
+
+### Inventory_parts {.tabset}
+#### Przykładowe dane
+```{r}
+knitr::kable(head(inventory_parts_clean))
+```
+#### Statystyki
+```{r}
+skim(inventory_parts_clean)
+```
+
+### Inventory_sets {.tabset}
+#### Przykładowe dane
+```{r}
+knitr::kable(head(inventory_sets_clean))
+```
+#### Statystyki
+```{r}
+skim(inventory_sets_clean)
+```
+
+### Minifigs {.tabset}
+#### Przykładowe dane
+```{r}
+knitr::kable(head(minifigs_clean))
+```
+#### Statystyki
+```{r}
+skim(minifigs_clean)
+```
+
+### Part_categories {.tabset}
+#### Przykładowe dane
+```{r}
+knitr::kable(head(part_categories_clean))
+```
+#### Statystyki
+```{r}
+skim(part_categories_clean)
+```
+
+### Part_relationships {.tabset}
+#### Przykładowe dane
+```{r}
+knitr::kable(head(part_relationships_clean))
+```
+#### Statystyki
+```{r}
+skim(part_relationships_clean)
+```
+
+### Parts {.tabset}
+#### Przykładowe dane
+```{r}
+knitr::kable(head(parts_clean))
+```
+#### Statystyki
+```{r}
+skim(parts_clean)
+```
+
+### Sets {.tabset}
+#### Przykładowe dane
+```{r}
+knitr::kable(head(sets_clean))
+```
+#### Statystyki
+```{r}
+skim(sets_clean)
+```
+
+### Themes {.tabset}
+#### Przykładowe dane
+```{r}
+knitr::kable(head(themes_clean))
+```
+#### Statystyki
+```{r}
+skim(themes_clean)
+```
+
+## Analiza wartości atrybutów
+```{r}
+how_big_tops <- 20
+```
+### Top `r how_big_tops` najbardziej popularnych kolorów klocków lego
+```{r}
+element_colors <- left_join(elements_clean, colors_clean, by = join_by(color_id == id))
+top_colors <- element_colors %>% select(name, color_id, rgb) %>% count(color_id, rgb, name, sort = TRUE) %>% head(how_big_tops) %>% mutate(rgb=paste0("#", toupper(rgb)))
+
+top_colors_plot <- ggplot(top_colors, aes(x=reorder(name, n), y = n, fill = rgb)) +
+  geom_bar(stat = "identity") +
+  scale_fill_identity() +
+  coord_flip() +
+  labs(title = "Najbardziej popularne kolory", x = "Kolor", y = "Liczba elementów") +
+  theme_bw()
+ggplotly(top_colors_plot)
+```
+
+### Top `r how_big_tops` najbardziej popularnych zestawów
+```{r}
+inventory_sets <- inner_join(inventory_sets_clean, sets_clean, by = join_by(set_num == set_num))
+
+top_sets <- inventory_sets %>% group_by(set_num) %>% 
+  summarise(
+    sum_quantity = sum(quantity),
+    name = first(name),
+    img_url = first(img_url)) %>%
+  arrange(-sum_quantity) %>%
+  head(how_big_tops)
+
+top_sets_table <- top_sets %>% select(name, sum_quantity, img_url) %>% mutate(Zdjęcie = paste0('![](', img_url, '){width=30%}')) %>%
+  rename(Nazwa = name, Liczba = sum_quantity) %>% select(-img_url)
+knitr::kable(top_sets_table)
+```
+
+### Top `r how_big_tops` najczęściej wykorzystywanych figurek
+```{r}
+inventory_minifgs <- left_join(inventory_minifigs_clean, minifigs_clean, by = join_by(fig_num == fig_num))
+
+top_minifigs <- inventory_minifgs %>% select(-inventory_id, -num_parts) %>% group_by(fig_num) %>%
+  summarise(
+    sum_quantity = sum(quantity),
+    name = first(name),
+    img_url = first(img_url)) %>%
+  arrange(-sum_quantity) %>%
+  head(how_big_tops)
+
+top_minifigs_table <- top_minifigs %>% select(name, sum_quantity, img_url) %>% mutate(Zdjęcie = paste0('![](', img_url, '){width=30%}')) %>% rename(Nazwa = name, Liczba = sum_quantity) %>% select(-img_url)
+knitr::kable(top_minifigs_table)                  
+```
+
+### Top `r how_big_tops` najczęściej wykorzystywanych elementów
+```{r}
+inventory_parts <- left_join(inventory_parts_clean, parts_clean, by = join_by(part_num == part_num))
+
+top_parts <- inventory_parts %>% select(-inventory_id, -inventory_id, -color_id, -is_spare) %>% group_by(part_num) %>%
+  summarise(
+    sum_quantity = sum(quantity),
+    name = first(name),
+    img_url = first(img_url)) %>%
+  arrange(-sum_quantity) %>%
+  head(how_big_tops)
+
+top_parts_table <- top_parts %>% select(name, sum_quantity, img_url) %>% mutate(Zdjęcie = paste0('![](', img_url, '){width=30%}')) %>% rename(Nazwa = name, Liczba = sum_quantity) %>% select(-img_url)
+knitr::kable(top_parts_table)                  
+```
+
+### Top `r how_big_tops` najczęstszych motywów
+```{r}
+themes_without_parents <- select(themes_clean, -parent_id)
+themes_with_parents <- left_join(themes_clean, themes_without_parents, by = join_by(parent_id == id), suffix = c("_child", "_parent")) %>% select(-parent_id) %>% mutate(name_parent = ifelse(is.na(name_parent), name_child, name_parent))
+
+themes_sets <- left_join(sets_clean, themes_with_parents, by = join_by(theme_id == id))
+
+top_themes <- themes_sets %>% group_by(name_parent) %>%
+  summarise(
+    sum_quantity = n(),
+    name = first(name_parent)) %>%
+  arrange(-sum_quantity) %>%
+  select(-name_parent) %>%
+  relocate(name) %>%
+  rename(Nazwa = name, Liczba = sum_quantity) %>%
+  head(how_big_tops)
+knitr::kable(top_themes)
+```
+
+### Top `r how_big_tops` najczęstszych kategorii części
+```{r}
+parts_with_categories <- left_join(parts_clean, part_categories_clean, by = join_by(part_cat_id == id))
+
+top_parts_categories <- parts_with_categories %>% select(name.y) %>% group_by(name.y) %>% summarise(sum = n()) %>% arrange(-sum) %>% head(how_big_tops)
+
+top_parts_catagories_plot <- ggplot(top_parts_categories, aes(x=reorder(name.y, sum), y=sum)) +
+  geom_bar(stat="identity") +
+  coord_flip() +
+  labs(x = "Nazwa kategorii", y = "Liczba") +
+  theme_bw()
+
+ggplotly(top_parts_catagories_plot)
+```
+
+### Coroczny wzrost liczby zestawów do roku 2022
+```{r}
+sets_current_year <- filter(sets_clean, year <= 2022)
+sets_by_year <- sets_current_year %>% group_by(year) %>% summarise(sum = n()) %>% mutate(cumulative_sum = cumsum(sum))
+
+colnames(sets_by_year) <- c("Rok", "Liczba_zestawów", "Sumaryczna_liczba_zestawów")
+
+sets_by_year_plot <- ggplot(sets_by_year, aes(x = Rok, y = Liczba_zestawów)) +
+  geom_bar(stat = "identity") +
+  geom_line(aes(y = Sumaryczna_liczba_zestawów), color="blue") + 
+  labs(title = "Sumaryczna liczba zestawów na przestrzeni lat") +
+  theme_bw()
+
+ggplotly(sets_by_year_plot)
+```
+
+## Korelacja liczby części oraz lat
+```{r}
+sum_parts_per_year <- sets_clean %>% select(num_parts, year) %>% filter(year <= 2022) %>% group_by(year) %>% summarise(sum_parts = sum(num_parts))
+
+sum_parts_per_year_plot <- ggplot(sum_parts_per_year, aes(x = year, y = sum_parts)) +
+  geom_bar(stat="identity") +
+  labs(title = "Liczba nowych części na przestrzeni lat", x = "Rok", y = "Liczba części") +
+  geom_smooth(method = "loess") +
+  theme_bw()
+
+ggplotly(sum_parts_per_year_plot)
+```
+```{r}
+cor_pearson <- cor(sum_parts_per_year$year, sum_parts_per_year$sum_parts, method = "pearson")
+cor_kendall <- cor(sum_parts_per_year$year, sum_parts_per_year$sum_parts, method = "kendall")
+cor_spearman <- cor(sum_parts_per_year$year, sum_parts_per_year$sum_parts, method = "spearman")
+```
+
+Dla <strong>liczby elementów</strong> i <strong> lat</strong> korelacja wynosi:
+
+- metodą Pearsona: `r cor_pearson`
+- metodą Kendalla: `r cor_kendall`
+- metodą Spearmana: `r cor_spearman`
+
+# Przewidywanie trendów
+
+## Liczba nowych zestawów w nastepnych latach
+```{r}
+time_series_sets_by_year <- ts(sets_by_year$Liczba_zestawów, start = min(sets_by_year$Rok), end = 2020, frequency = 1)
+sets_by_year_model <- auto.arima(time_series_sets_by_year)
+sets_by_year_forecast <- forecast(sets_by_year_model, h = 20)
+autoplot(sets_by_year_forecast) + labs(title = "", x = "Rok", y = "Liczba nowych zestawów w danym roku") + theme_bw()
+
+sets_by_year_forecast <- as.data.frame(sets_by_year_forecast)
+sets_by_year_forecast <- sets_by_year_forecast %>% add_rownames("Rok")
+sets_by_year_forecast_2028 <- sets_by_year_forecast[sets_by_year_forecast$Rok == 2028, ]
+sets_by_year_forecast_2028 <- as.integer(sets_by_year_forecast_2028$"Point Forecast")
+sets_by_year_forecast_2033 <- sets_by_year_forecast[sets_by_year_forecast$Rok == 2033, ]
+sets_by_year_forecast_2033 <- as.integer(sets_by_year_forecast_2033$"Point Forecast")
+```
+
+Zgodnie z modelem:
+
+- w <strong>2028 roku</strong> będzie <strong>`r sets_by_year_forecast_2028`</strong> nowych zestawów
+- w <strong>2033 roku</strong> będzie <strong>`r sets_by_year_forecast_2033`</strong> nowych zestawów
+
+## Sumaryczna liczba zestawów w następnych latach
+```{r}
+time_series_sets_by_year_cum <- ts(sets_by_year$Sumaryczna_liczba_zestawów, start = min(sets_by_year$Rok), end = 2020, frequency = 1)
+sets_by_year_cum_model <- auto.arima(time_series_sets_by_year_cum)
+sets_by_year_cum_forecast <- forecast(sets_by_year_cum_model, h = 20)
+autoplot(sets_by_year_cum_forecast) + labs(title = "", x = "Rok", y = "Sumaryczna liczba zestawów w danym roku") + theme_bw()
+
+sets_by_year_cum_forecast <- as.data.frame(sets_by_year_cum_forecast)
+sets_by_year_cum_forecast <- sets_by_year_cum_forecast %>% add_rownames("Rok")
+sets_by_year_cum_forecast_2028 <- sets_by_year_cum_forecast[sets_by_year_cum_forecast$Rok == 2028, ]
+sets_by_year_cum_forecast_2028 <- as.integer(sets_by_year_cum_forecast_2028$"Point Forecast")
+sets_by_year_cum_forecast_2033 <- sets_by_year_cum_forecast[sets_by_year_cum_forecast$Rok == 2033, ]
+sets_by_year_cum_forecast_2033 <- as.integer(sets_by_year_cum_forecast_2033$"Point Forecast")
+```
+
+Zgodnie z modelem:
+
+- w <strong>2028 roku</strong> będzie sumarycznie <strong>`r sets_by_year_cum_forecast_2028`</strong> zestawów
+- w <strong>2033 roku</strong> będzie sumarycznie <strong>`r sets_by_year_cum_forecast_2033`</strong> zestawów
+
+## Liczba części w następnych latach
+```{r}
+time_series_sum_parts_per_year <- ts(sum_parts_per_year$sum_parts, start = min(sum_parts_per_year$year), end = 2020, frequency = 1)
+sum_parts_per_year_model <- auto.arima(time_series_sum_parts_per_year)
+sum_parts_per_year_forecast <- forecast(sum_parts_per_year_model, h = 20)
+autoplot(sum_parts_per_year_forecast) + labs(title = "", x = "Rok", y = "Liczba nowych części w danym roku") + theme_bw()
+
+sum_parts_per_year_forecast <- as.data.frame(sum_parts_per_year_forecast)
+sum_parts_per_year_forecast <- sum_parts_per_year_forecast %>% add_rownames("Rok")
+sum_parts_per_year_forecast_2028 <- sum_parts_per_year_forecast[sum_parts_per_year_forecast$Rok == 2028, ]
+sum_parts_per_year_forecast_2028 <- as.integer(sum_parts_per_year_forecast_2028$"Point Forecast")
+sum_parts_per_year_forecast_2033 <- sum_parts_per_year_forecast[sum_parts_per_year_forecast$Rok == 2033, ]
+sum_parts_per_year_forecast_2033 <- as.integer(sum_parts_per_year_forecast_2033$"Point Forecast")
+```
+
+Zgodnie z modelem:
+
+- w <strong>2028 roku</strong> będzie sumarycznie <strong>`r sum_parts_per_year_forecast_2028`</strong> części
+- w <strong>2033 roku</strong> będzie sumarycznie <strong>`r sum_parts_per_year_forecast_2033`</strong> części
